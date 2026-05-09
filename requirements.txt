@@ -1,0 +1,12 @@
+javalang
+sentence-transformers
+chromadb
+langchain
+langchain-community
+streamlit
+networkx
+matplotlib
+requests
+tqdm
+python-dotenv
+huggingface_hub
