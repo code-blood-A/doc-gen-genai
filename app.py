@@ -21,7 +21,31 @@ st.markdown("Automated Javadoc injection and documentation generation for Java p
 
 with st.sidebar:
     st.header("⚙️ Settings")
-    st.info(f"Target Repo: `{config.TARGET_REPO}`")
+    
+    if "target_repo" not in st.session_state:
+        st.session_state.target_repo = config.TARGET_REPO if config.TARGET_REPO else ""
+        
+    def browse_directory():
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True)
+        folder_path = filedialog.askdirectory(master=root)
+        root.destroy()
+        if folder_path:
+            st.session_state.target_repo = folder_path
+
+    repo_col, btn_col = st.columns([4, 1])
+    with repo_col:
+        st.text_input("Target Repo", key="target_repo")
+    with btn_col:
+        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+        st.button("📁", on_click=browse_directory, help="Browse for directory")
+
+    config.TARGET_REPO = st.session_state.target_repo
+    config.DOCS_DIR = os.path.join(config.TARGET_REPO if config.TARGET_REPO else ".", "docs")
+
     use_ollama = st.checkbox("Use Local Ollama (Fallback)", value=config.OLLAMA_FALLBACK)
     
     st.divider()
