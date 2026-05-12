@@ -2,6 +2,8 @@ import streamlit as st
 import os
 import sys
 import time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from components.folder_uploader import folder_uploader
 
 # Add project root to sys.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -21,31 +23,57 @@ st.markdown("Automated Javadoc injection and documentation generation for Java p
 
 with st.sidebar:
     st.header("⚙️ Settings")
-    
-    if "target_repo" not in st.session_state:
-        st.session_state.target_repo = config.TARGET_REPO if config.TARGET_REPO else ""
-        
-    def browse_directory():
-        import tkinter as tk
-        from tkinter import filedialog
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes('-topmost', True)
-        folder_path = filedialog.askdirectory(master=root)
-        root.destroy()
-        if folder_path:
-            st.session_state.target_repo = folder_path
 
-    repo_col, btn_col = st.columns([4, 1])
-    with repo_col:
-        st.text_input("Target Repo", key="target_repo")
-    with btn_col:
-        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-        st.button("📁", on_click=browse_directory, help="Browse for directory")
+    # ── Input mode selector ──────────────────────────────────────────
+    input_mode = st.radio(
+        "📥 Input Mode",
+        options=["Local Path", "Upload Folder"],
+        horizontal=True,
+        help="Choose how to provide your Java project",
+    )
 
-    config.TARGET_REPO = st.session_state.target_repo
+    st.divider()
+
+    if input_mode == "Local Path":
+        # ── Original local-path + browse-button flow ─────────────────
+        if "target_repo" not in st.session_state:
+            st.session_state.target_repo = config.TARGET_REPO if config.TARGET_REPO else ""
+
+        def browse_directory():
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes('-topmost', True)
+            folder_path = filedialog.askdirectory(master=root)
+            root.destroy()
+            if folder_path:
+                st.session_state.target_repo = folder_path
+
+        repo_col, btn_col = st.columns([4, 1])
+        with repo_col:
+            st.text_input("Target Repo Path", key="target_repo")
+        with btn_col:
+            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+            st.button("📁", on_click=browse_directory, help="Browse for directory")
+
+        config.TARGET_REPO = st.session_state.target_repo
+
+    else:
+        # ── Folder upload via custom component ───────────────────────
+        st.caption("Select your Java project folder from your device. All `.java` files will be uploaded automatically.")
+        uploaded_dir = folder_uploader(key="folder_uploader")
+
+        if uploaded_dir:
+            config.TARGET_REPO = uploaded_dir
+            st.success(f"✅ Folder loaded — {sum(1 for _, _, fs in os.walk(uploaded_dir) for f in fs if f.endswith('.java'))} Java files found")
+        else:
+            config.TARGET_REPO = ""
+            st.info("No folder selected yet.")
+
     config.DOCS_DIR = os.path.join(config.TARGET_REPO if config.TARGET_REPO else ".", "docs")
 
+    st.divider()
     use_ollama = st.checkbox("Use Local Ollama (Fallback)", value=config.OLLAMA_FALLBACK)
     
     st.divider()

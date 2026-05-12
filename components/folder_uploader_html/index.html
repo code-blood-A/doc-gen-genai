@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Folder Uploader</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: transparent;
+            padding: 8px;
+        }
+
+        .upload-zone {
+            border: 2px dashed #888;
+            border-radius: 10px;
+            padding: 24px 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            background: #fafafa;
+            user-select: none;
+        }
+
+        .upload-zone:hover {
+            border-color: #ff4b4b;
+            background: #fff5f5;
+        }
+
+        .upload-zone.active {
+            border-color: #28a745;
+            border-style: solid;
+            background: #f0fff4;
+        }
+
+        .upload-icon { font-size: 36px; margin-bottom: 8px; }
+
+        .upload-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .upload-subtitle {
+            font-size: 12px;
+            color: #888;
+        }
+
+        #status {
+            margin-top: 10px;
+            font-size: 13px;
+            color: #555;
+            min-height: 20px;
+        }
+
+        #file-list {
+            margin-top: 8px;
+            max-height: 130px;
+            overflow-y: auto;
+            font-size: 11px;
+            color: #444;
+            background: #f8f8f8;
+            border-radius: 6px;
+            padding: 6px 10px;
+            display: none;
+        }
+
+        #file-list div {
+            padding: 2px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        #file-list div:last-child { border-bottom: none; }
+
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #ddd;
+            border-top-color: #ff4b4b;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <input type="file" id="folderInput" webkitdirectory multiple style="display:none">
+
+    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('folderInput').click()">
+        <div class="upload-icon" id="uploadIcon">📂</div>
+        <div class="upload-title" id="uploadTitle">Click to Select Project Folder</div>
+        <div class="upload-subtitle">All .java files inside the folder will be uploaded automatically</div>
+    </div>
+
+    <div id="status"></div>
+    <div id="file-list"></div>
+
+    <script>
+        /* ── Streamlit postMessage helpers ── */
+        function sendToStreamlit(type, data) {
+            window.parent.postMessage({ isStreamlitMessage: true, type, ...data }, "*");
+        }
+
+        function setReady()  { sendToStreamlit("streamlit:componentReady", { apiVersion: 1 }); }
+        function setHeight(h){ sendToStreamlit("streamlit:setFrameHeight",  { height: h }); }
+        function setValue(v) { sendToStreamlit("streamlit:setComponentValue", { value: v }); }
+
+        /* ── Init ── */
+        setReady();
+        setHeight(180);
+
+        /* ── File input change handler ── */
+        document.getElementById('folderInput').addEventListener('change', function (e) {
+            const allFiles  = Array.from(e.target.files);
+            const javaFiles = allFiles.filter(f => f.name.endsWith('.java'));
+            const zone      = document.getElementById('uploadZone');
+            const status    = document.getElementById('status');
+            const fileList  = document.getElementById('file-list');
+
+            if (javaFiles.length === 0) {
+                status.innerHTML = '⚠️ No <code>.java</code> files found in the selected folder.';
+                return;
+            }
+
+            status.innerHTML = `<span class="spinner"></span> Reading ${javaFiles.length} Java files…`;
+
+            const fileData = [];
+            let processed  = 0;
+
+            javaFiles.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function (ev) {
+                    // Strip the data-URL prefix, keep only the base64 content
+                    const base64 = ev.target.result.split(',')[1];
+                    fileData.push({ path: file.webkitRelativePath, content: base64 });
+                    processed++;
+
+                    if (processed === javaFiles.length) {
+                        // Sort paths so the tree is deterministic
+                        fileData.sort((a, b) => a.path.localeCompare(b.path));
+
+                        // Update UI
+                        zone.classList.add('active');
+                        document.getElementById('uploadIcon').textContent  = '✅';
+                        document.getElementById('uploadTitle').textContent =
+                            `${javaFiles.length} Java file${javaFiles.length > 1 ? 's' : ''} ready`;
+
+                        status.textContent = '';
+                        fileList.style.display = 'block';
+                        fileList.innerHTML = fileData
+                            .map(f => `<div>📄 ${f.path}</div>`)
+                            .join('');
+
+                        // Recalculate height with file list visible
+                        setHeight(Math.min(180 + javaFiles.length * 20, 420));
+
+                        // Send data back to Python
+                        setValue(fileData);
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+    </script>
+</body>
+</html>
